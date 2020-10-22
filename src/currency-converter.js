@@ -12,8 +12,12 @@ import {
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome' 
 import { faAngleDoubleRight } from '@fortawesome/free-solid-svg-icons'
 import ListCurrency from  './list-currency'
+import axios from 'axios'
 
 function CurrencyConverter() {
+
+  const FIXER_URL = 'http://data.fixer.io/api/latest?access_key=796d5b23ab76c25708e45d903c724a6c'
+
   const [value, setValue] = useState('1');
   const [originCurrency, setOriginCurrency] = useState('BRL');
   const [destinyCurrency, setDestinyCurrency] = useState('USD');
@@ -21,6 +25,7 @@ function CurrencyConverter() {
   const [formValid, setFormValid] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [convertResult, setConvertResult] = useState(false)
+  const [showErrorMessage, setShowErrorMessage] = useState(false)
   
   function handleValue(e){
     setValue(e.target.value.replace(/\D/g, ''))
@@ -46,15 +51,44 @@ function CurrencyConverter() {
     e.preventDefault()
     setFormValid(true)
     if(e.currentTarget.checkValidity() === true){
-      setShowModal(true)
+      setShowSpinner(true)
+      axios.get(FIXER_URL)
+        .then(res => {
+          const quote = getQuote(res.data)
+          if(quote){
+            setConvertResult(`${value} ${originCurrency} = ${quote} ${destinyCurrency}`)
+            setShowModal(true)
+            setShowSpinner(false)
+            setShowErrorMessage(false)
+          }else{
+            showError()
+          }
+        })
+        .catch(err => showError())
     }
+  }
+
+  function showError(){
+    setShowErrorMessage(true)
+    setShowSpinner(false)
+  }
+
+  function getQuote(quoteData){
+    if(!quoteData || quoteData.success !== true){
+      return false
+    }
+    const quoteOrigin = quoteData.rates[originCurrency]
+    const quoteDestiny = quoteData.rates[destinyCurrency]
+    const quote = (1 / quoteOrigin * quoteDestiny) * value
+
+    return quote.toFixed(2)
   }
 
   return (
     <div>
-      <h1>Currency converter</h1>
-      <Alert variant='danger' show={false}>
-        Conection error, please try again.
+      <h1>Conversor de Moedas</h1>
+      <Alert variant='danger' show={showErrorMessage}>
+        Erro obtendo dados de conversão, tente novamente.
       </Alert>
       <Jumbotron>
         <Form onSubmit={convert} noValidate validated={formValid}>
@@ -87,7 +121,7 @@ function CurrencyConverter() {
               </Form.Control>
             </Col>
             <Col sm="2">
-              <Button variant='success' type='submit'>
+              <Button variant='success' type='submit' data-testid="btn-converter">
                 <span className={ showSpinner ? null : 'hidden'}>
                   <Spinner animation='border' size='sm' />
                 </span>
@@ -98,7 +132,7 @@ function CurrencyConverter() {
             </Col>
           </Form.Row>
         </Form>
-        <Modal show={showModal} onHide={handleCloseModal}>
+        <Modal show={showModal} onHide={handleCloseModal} data-testid="modal">
           <Modal.Header closeButton>
             <Modal.Title>
               Converter
